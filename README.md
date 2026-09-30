@@ -67,5 +67,4 @@ Agent 從知識庫（貓咪品種資料、現有貓咪清單、貓舍政策）�
 
 每週學習文件放在 weekly-logs/ 資料夾，依單元編號命名， 例如 weekly-logs/單元0.md、weekly-logs/單元1.md，方便老師逐週檢視進度。
 
-實作指引與模板放在 docs/ 資料夾。
-每週學習文件放在 weekly-logs/ 資料夾，依單元編號命名， 例如 weekly-logs/單元0.md、weekly-logs/單元1.md，方便老師逐週檢視進度。
+
