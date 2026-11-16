@@ -16,13 +16,18 @@ function sheet_(name, headers) {
   return sh;
 }
 
+// Strings that look like numbers (phone numbers, "8") would lose leading zeros or units; keep them as text.
+function asText_(v) {
+  return typeof v === 'string' && /^[0-9+\-\s().]+$/.test(v) ? "'" + v : v;
+}
+
 function doPost(e) {
   const data = JSON.parse(e.postData.contents);
   const secret = PropertiesService.getScriptProperties().getProperty('LOG_SECRET');
   if (!secret || data.secret !== secret) {
     return ContentService.createTextOutput('forbidden');
   }
-  if (data.turn) sheet_('對話紀錄', TURN_HEADERS).appendRow(TURN_KEYS.map(k => data.turn[k]));
-  if (data.lead) sheet_('名單', LEAD_HEADERS).appendRow(LEAD_KEYS.map(k => data.lead[k]));
+  if (data.turn) sheet_('對話紀錄', TURN_HEADERS).appendRow(TURN_KEYS.map(k => asText_(data.turn[k])));
+  if (data.lead) sheet_('名單', LEAD_HEADERS).appendRow(LEAD_KEYS.map(k => asText_(data.lead[k])));
   return ContentService.createTextOutput('ok');
 }

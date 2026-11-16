@@ -5,13 +5,16 @@ export const PAGE = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#efe4d4">
+<meta name="theme-color" content="#65020a">
 <title>金霸貓舍 AI 選種顧問</title>
 <style>
   :root {
-    --bg:#efe4d4; --wall:#f6ede1; --wall2:#ecdcc6; --floor:#dcc4a3; --plinth:#cfb48f;
-    --panel:#fffaf3; --ink:#2f2924; --muted:#8a7d70; --line:#e6d8c5;
-    --brand:#a8692f; --brand-dark:#7d4c22; --gold-soft:#f6e6cf;
+    /* brand: berry red #65020A + lake blue #18D5E7 */
+    --berry:#65020a; --berry-dark:#4a0107; --berry-soft:#f7e6e8;
+    --lake:#18d5e7; --lake-dark:#0b7f8b; --lake-deep:#063b41; --lake-soft:#e0f9fb; --lake-line:#9eeaf2;
+    --bg:#eef7f8; --wall:#f4fcfd; --wall2:#ddf5f8; --floor:#bfeaf0; --plinth:#7fd3de;
+    --panel:#fffdfd; --ink:#2b2326; --muted:#766b6e; --line:#ebe1e4;
+    --brand:var(--berry); --brand-dark:var(--berry-dark);
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html, body { height:100%; }
@@ -25,29 +28,29 @@ export const PAGE = `<!doctype html>
 
   /* stage: the cat takes shape as the customer talks */
   .stage { position:relative; flex:0 0 auto; height:min(44vh, 400px); min-height:260px; overflow:hidden;
-    background:linear-gradient(180deg, var(--wall) 0%, var(--wall2) 72%, var(--floor) 72%, #d3b994 100%); }
-  .shelf { position:absolute; left:6%; right:6%; height:6px; border-radius:3px; background:#d9c2a2; opacity:.7; }
+    background:linear-gradient(180deg, var(--wall) 0%, var(--wall2) 72%, var(--floor) 72%, #a9e1e9 100%); }
+  .shelf { position:absolute; left:6%; right:6%; height:6px; border-radius:3px; background:var(--lake-line); opacity:.8; }
   .shelf.s1 { top:22%; } .shelf.s2 { top:44%; left:62%; }
-  .frame { position:absolute; top:9%; left:7%; width:68px; height:52px; border:4px solid #c9a77a; border-radius:4px; background:#f9f1e5; display:grid; place-items:center; font-size:10px; color:#a1855f; letter-spacing:.1em; }
+  .frame { position:absolute; top:9%; left:7%; width:68px; height:52px; border:4px solid var(--berry); border-radius:4px; background:var(--berry-soft); display:grid; place-items:center; font-size:10px; color:var(--berry-dark); letter-spacing:.1em; }
   .catwrap { position:absolute; left:50%; bottom:6%; transform:translateX(-50%); width:min(230px, 52vw); }
   .catwrap::after { content:""; position:absolute; left:14%; right:14%; bottom:1%; height:16px; border-radius:50%; background:var(--plinth); opacity:.55; z-index:0; }
   .catwrap svg { position:relative; z-index:1; width:100%; height:auto; display:block; transition:filter .8s ease, opacity .8s ease; }
   .catwrap.unknown svg { filter:grayscale(1) brightness(1.18); opacity:.42; }
-  .nametag { position:absolute; left:50%; top:5%; transform:translateX(-50%); background:rgba(255,250,243,.92); border:1px solid var(--line); border-radius:999px; padding:6px 14px; font-size:13px; font-weight:700; white-space:nowrap; max-width:92%; overflow:hidden; text-overflow:ellipsis; color:var(--brand-dark); }
+  .nametag { position:absolute; left:50%; top:5%; transform:translateX(-50%); background:rgba(255,253,253,.94); border:1px solid var(--line); border-radius:999px; padding:6px 14px; font-size:13px; font-weight:700; white-space:nowrap; max-width:92%; overflow:hidden; text-overflow:ellipsis; color:var(--brand-dark); }
   .nametag small { font-weight:500; color:var(--muted); margin-right:6px; }
 
   /* advisor's notes */
-  .notes { position:absolute; right:12px; top:12px; width:190px; background:rgba(255,250,243,.95); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:12.5px; }
-  .notes h2 { font-size:12px; color:var(--brand-dark); letter-spacing:.08em; margin-bottom:6px; }
+  .notes { position:absolute; right:12px; top:12px; width:190px; background:rgba(255,253,253,.95); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:12.5px; }
+  .notes h2 { font-size:12px; color:var(--lake-dark); letter-spacing:.08em; margin-bottom:6px; }
   .notes li { list-style:none; display:flex; gap:8px; padding:3px 0; border-top:1px dashed var(--line); align-items:flex-start; }
   .notes li:first-of-type { border-top:none; }
-  .notes .k { flex:none; width:16px; height:16px; border-radius:4px; border:1.5px solid #cdb79a; display:grid; place-items:center; font-size:11px; color:#fff; margin-top:2px; }
-  .notes li.done .k { background:var(--brand); border-color:var(--brand); }
+  .notes .k { flex:none; width:16px; height:16px; border-radius:4px; border:1.5px solid var(--lake-line); display:grid; place-items:center; font-size:11px; color:#fff; margin-top:2px; }
+  .notes li.done .k { background:var(--lake); border-color:var(--lake); color:var(--lake-deep); }
   .notes .t { color:var(--muted); min-width:0; }
   .notes li.done .t { color:var(--ink); }
-  .notes .v { display:block; font-size:11.5px; color:var(--brand-dark); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:140px; }
+  .notes .v { display:block; font-size:11.5px; color:var(--lake-dark); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:140px; }
   @media (max-width:640px) {
-    .notes { left:8px; right:8px; top:auto; bottom:8px; width:auto; padding:6px 8px; display:flex; gap:4px; flex-wrap:wrap; background:rgba(255,250,243,.88); }
+    .notes { left:8px; right:8px; top:auto; bottom:8px; width:auto; padding:6px 8px; display:flex; gap:4px; flex-wrap:wrap; background:rgba(255,253,253,.9); }
     .notes h2, .notes .v { display:none; }
     .notes ul { display:flex; gap:4px; flex-wrap:wrap; }
     .notes li { border:none; padding:2px 6px; border-radius:999px; background:#fff; font-size:11.5px; }
@@ -68,8 +71,8 @@ export const PAGE = `<!doctype html>
   .dbg { display:none; font-size:11px; color:var(--muted); font-family:ui-monospace, Menlo, Consolas, monospace; margin-top:8px; }
   .show-dbg .dbg { display:block; }
   .chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
-  .chip { font:inherit; font-size:14px; color:var(--brand-dark); background:var(--gold-soft); border:1px solid #ead2b2; border-radius:999px; padding:8px 14px; cursor:pointer; }
-  .chip:hover { background:#f1dbbd; }
+  .chip { font:inherit; font-size:14px; color:var(--lake-dark); background:var(--lake-soft); border:1px solid var(--lake-line); border-radius:999px; padding:8px 14px; cursor:pointer; }
+  .chip:hover { background:#c9f3f7; }
   .dots { display:inline-flex; gap:4px; padding:6px 0; }
   .dots i { width:7px; height:7px; border-radius:50%; background:var(--muted); animation:b 1.2s infinite ease-in-out; }
   .dots i:nth-child(2) { animation-delay:.15s; } .dots i:nth-child(3) { animation-delay:.3s; }
@@ -77,13 +80,13 @@ export const PAGE = `<!doctype html>
   @media (prefers-reduced-motion:reduce) { .dots i { animation:none; opacity:.6; } }
   form { display:flex; gap:8px; padding:10px 12px calc(10px + env(safe-area-inset-bottom)); border-top:1px solid var(--line); background:var(--panel); }
   input { flex:1; min-width:0; font:inherit; font-size:16px; padding:11px 16px; border:1px solid var(--line); border-radius:999px; outline:none; background:#fff; color:var(--ink); }
-  input:focus { border-color:var(--brand); }
+  input:focus { border-color:var(--lake); }
   form button { font:inherit; font-size:15px; font-weight:600; padding:0 18px; border:none; border-radius:999px; background:var(--brand); color:#fff; cursor:pointer; }
   form button:disabled { opacity:.4; cursor:default; }
   .note { font-size:10.5px; color:var(--muted); text-align:center; padding:0 12px 8px; background:var(--panel); }
 
   /* full history */
-  .hist { position:fixed; inset:0; background:rgba(47,41,36,.45); display:none; align-items:flex-end; justify-content:center; z-index:9; }
+  .hist { position:fixed; inset:0; background:rgba(43,35,38,.45); display:none; align-items:flex-end; justify-content:center; z-index:9; }
   .hist.open { display:flex; }
   .hist .sheet { width:100%; max-width:640px; max-height:80vh; overflow-y:auto; background:var(--panel); border-radius:16px 16px 0 0; padding:16px; display:flex; flex-direction:column; gap:10px; }
   .hist h2 { font-size:15px; display:flex; justify-content:space-between; align-items:center; }
