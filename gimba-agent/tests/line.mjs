@@ -73,6 +73,38 @@ check("留聯絡方式回感謝句", thanks?.text.includes("謝謝"), thanks?.te
 check("老闆收到新名單推播", push?.text.includes("新名單（LINE）") && push.text.includes("0912000000"));
 if (push) console.log(push.text.replace(/^/gm, "    "));
 
+const code = push?.text.match(/line-[0-9a-f]{10}/)?.[0] ?? "";
+check("新名單通知附上代碼", !!code, code);
+const silent = async (text) => { const before = (await outbox()).length; await post([textEvent(CUSTOMER, text)]); await new Promise((r) => setTimeout(r, 6000)); return (await outbox()).slice(before).filter((m) => m.kind === "reply" && m.to === CUSTOMER).length; };
+
+// 5a. right after the lead the owner answers by hand: the advisor steps back on its own
+const auto = await silent("那週六可以去看嗎");
+check("留下聯絡方式後顧問自動安靜", auto === 0, `${auto} 則`);
+await send([textEvent(OWNER, `交回 ${code}`)]);
+
+// 5b. after leaving contact: answer only, never invite again
+const fu = await send([textEvent(CUSTOMER, "看可預訂的寶寶")]);
+check("留過聯絡方式後不再邀請", !!fu.fresh[0] && !/稱呼跟聯絡方式|留個稱呼/.test(fu.fresh[0].text), fu.fresh[0]?.text.slice(0, 40));
+
+// 5c. owner marks the sale: after-sales tone from now on
+const deal = await send([textEvent(OWNER, `成交 ${code}`)]);
+check("老闆傳「成交 代碼」", deal.fresh[0]?.text.includes("已購買"), deal.fresh[0]?.text.slice(0, 30));
+const mem = await send([textEvent(CUSTOMER, "貓咪接回家後一直躲在床底下怎麼辦")]);
+check("成交後用老客人口吻、不推銷", !!mem.fresh[0] && !/預算|稱呼跟聯絡方式|品種/.test(mem.fresh[0].text), mem.fresh[0]?.text.slice(0, 60));
+
+// 5d. owner takes over: the advisor stays quiet until handed back
+await send([textEvent(OWNER, `接手 ${code}`)]);
+const quiet = await silent("老闆在嗎");
+check("接手後顧問不回覆", quiet === 0, `${quiet} 則`);
+await send([textEvent(OWNER, `交回 ${code}`)]);
+const back = await send([textEvent(CUSTOMER, "謝謝")]);
+check("交回後顧問恢復回覆", !!back.fresh[0], back.fresh[0]?.text.slice(0, 30));
+
+// 5e. a customer who says the cat is already home is treated as family without any command
+const OLD = "Utestoldbuyer" + Date.now();
+const old = await send([textEvent(OLD, "我去年在你們這買的英短最近不太吃飯")]);
+check("說貓是在這裡買的 → 老客人口吻（不是自我介紹）", !!old.fresh[0] && !old.fresh[0].text.includes("AI 選種顧問"), old.fresh[0]?.text.slice(0, 60));
+
 // 6. LINE redelivers the same event: it must be answered only once
 const dupId = randomUUID();
 const d1 = await send([textEvent(CUSTOMER, "謝謝", dupId)]);
@@ -84,6 +116,10 @@ const rs = await send([textEvent(CUSTOMER, "清除我的資料再問一次")]);
 check("說「清除我的資料」會清掉記憶", rs.fresh[0]?.text.includes("重新開始"), rs.fresh[0]?.text.slice(0, 20));
 const after = await send([textEvent(CUSTOMER, "我想買貓")]);
 check("清掉後從頭問（不是回感謝句）", !!after.fresh[0] && !after.fresh[0].text.includes("謝謝"), after.fresh[0]?.text.slice(0, 30));
+
+// 6c. spend alert: the first turn of the day that passes DAILY_COST_ALERT_USD pushes a warning
+const alert = (await outbox()).find((m) => m.kind === "push" && m.text.includes("今天的模型費用"));
+check("單日費用超過門檻推播警告", !!alert, alert ? alert.text.slice(0, 30) : "（本機 .dev.vars 要設很低的 DAILY_COST_ALERT_USD，並先清掉今天的累計）");
 
 // 7. the owner asks for this week's numbers
 const rep = await send([textEvent(OWNER, "本週")]);

@@ -3,8 +3,7 @@ import { handleMessage, newState, type State } from "./agent";
 import { logTurn, costUsd } from "./log";
 import { PAGE } from "./page";
 import { signState, verifyState } from "./guard";
-import { leadText, lineWebhook, notifyOwner, OUTBOX, weeklyReport } from "./line";
-import { recordTurn } from "./stats";
+import { afterTurn, leadText, lineWebhook, notifyOwner, OUTBOX, weeklyReport } from "./line";
 
 export interface Env {
   ANTHROPIC_API_KEY: string;
@@ -17,6 +16,7 @@ export interface Env {
   LINE_CHANNEL_SECRET?: string; // checks that a webhook really comes from LINE
   LINE_CHANNEL_ACCESS_TOKEN?: string; // sends replies and pushes; without it (local dev) messages go to OUTBOX
   LINE_OWNER_ID?: string; // the owner's LINE user id: gets new leads and the Monday report
+  DAILY_COST_ALERT_USD?: string; // push a LINE alert the first time a day's model cost passes this (wrangler.toml)
 }
 
 const MAX_MESSAGE_CHARS = 500;
@@ -67,7 +67,7 @@ export default {
         const outState = env.STATE_SECRET ? await signState(env.STATE_SECRET, result.state) : result.state;
         if (!(evalMode && body.options?.log === false)) {
           if (env.LOG_URL && env.LOG_SECRET) ctx.waitUntil(logTurn(env.LOG_URL, env.LOG_SECRET, "web", sessionId, message, result).catch(() => {}));
-          ctx.waitUntil(recordTurn(env.KV, "web", result).catch((e) => console.error("stats", e)));
+          ctx.waitUntil(afterTurn(env, "web", result).catch((e) => console.error("stats", e)));
           if (result.path === "lead_saved") ctx.waitUntil(notifyOwner(env, leadText("網頁", result)).catch((e) => console.error("owner push", e)));
         }
         return json({

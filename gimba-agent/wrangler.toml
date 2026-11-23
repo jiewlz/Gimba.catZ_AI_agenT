@@ -20,6 +20,8 @@ crons = ["0 1 * * MON"]
 
 [vars]
 MODEL = "claude-haiku-5-5"
+# LINE alert the first time a day's model cost passes this (USD); about 140 six-turn conversations
+DAILY_COST_ALERT_USD = "0.5"
 
 # Secrets (set with `npx wrangler secret put <NAME>`, locally in .dev.vars):
 #   ANTHROPIC_API_KEY          Anthropic API key

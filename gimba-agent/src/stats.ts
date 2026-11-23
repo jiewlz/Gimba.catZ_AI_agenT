@@ -33,6 +33,20 @@ export function lastWeekKey(d = new Date()): string {
   return weekKey(new Date(d.getTime() - 7 * DAY));
 }
 
+/** Taiwan calendar date (YYYY-MM-DD). */
+export function dayKey(d = new Date()): string {
+  return new Date(d.getTime() + TW).toISOString().slice(0, 10);
+}
+
+/** Adds one turn's cost to today's total; returns the total before and after (for the spend alert). */
+export async function addDayCost(kv: KVNamespace, usd: number, now = new Date()): Promise<{ before: number; after: number }> {
+  const key = `cost:${dayKey(now)}`;
+  const before = Number((await kv.get(key)) ?? 0);
+  const after = before + usd;
+  await kv.put(key, String(after), { expirationTtl: 40 * 24 * 3600 });
+  return { before, after };
+}
+
 function empty(week: string): WeekStats {
   return { week, sessions: 0, channels: {}, turns: 0, recommends: 0, leads: 0, breeds: {}, guard: {}, cost: 0 };
 }

@@ -29,8 +29,12 @@ color：客人喜歡的毛色或花色，照原話填，例如「藍色」「金
 </wants_visit>
 
 <existing_customer>
-客人說自己已經訂貓、付過定金、在等接貓，就填 true，其他情況填 false。這種客人的問題原文也要填進 side_question。
+客人說自己已經訂貓、付過定金、**還在等接貓**，就填 true，其他情況填 false。貓已經接回家在養的（「去年買的」「接回家一週了」「最近很愛咬人」），不算，填 false，改填 already_home。這種客人的問題原文也要填進 side_question。
 </existing_customer>
+
+<already_home>
+客人說貓已經是在金霸貓舍買的、已經接回家在養，例如「我在你們這邊買的小步最近很愛咬人」「去年跟你們買的英短」「貓接回家一週了」，就填 true，其他情況填 false。只是自己家裡有養貓、沒說是在金霸買的，填 false。這種客人如果另外問了問題，問題原文也要填進 side_question。
+</already_home>
 
 <side_question>
 客人這句話裡如果另外問了一個問題（例如「英短會掉毛嗎？」），把那個問題原文填進 side_question；沒有就填空字串。單純回答顧問提問的話不算問題。
