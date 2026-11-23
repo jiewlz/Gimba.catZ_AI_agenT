@@ -24,6 +24,10 @@ export const PAGE = `<!doctype html>
   header h1 { font-size:15px; font-weight:700; letter-spacing:.04em; }
   header p { font-size:11px; opacity:.8; }
   header .sp { flex:1; }
+  header a.line { font-size:12px; font-weight:700; color:#fff; background:#06C755; border-radius:999px; padding:5px 12px; text-decoration:none; white-space:nowrap; }
+  header a.line::before { content:""; display:inline-block; width:6px; height:6px; border-radius:50%; background:#fff; margin-right:6px; vertical-align:middle; }
+  header h1, header button { white-space:nowrap; }
+  @media (max-width:420px) { header h1 .en { display:none; } }
   header button { font:inherit; font-size:12px; color:#fff8ee; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); border-radius:999px; padding:5px 11px; cursor:pointer; }
 
   /* stage: the cat takes shape as the customer talks */
@@ -66,7 +70,7 @@ export const PAGE = `<!doctype html>
   .who button { font:inherit; font-size:12px; color:var(--muted); background:none; border:1px solid var(--line); border-radius:999px; padding:4px 10px; cursor:pointer; }
   .say { flex:1 1 auto; min-height:0; overflow-y:auto; padding:10px 16px 6px; }
   .you { font-size:13px; color:var(--muted); margin-bottom:6px; }
-  .you::before { content:"你："; }
+  .you::before { content:"您："; }
   .line { font-size:16px; line-height:1.7; white-space:pre-wrap; word-break:break-word; }
   .dbg { display:none; font-size:11px; color:var(--muted); font-family:ui-monospace, Menlo, Consolas, monospace; margin-top:8px; }
   .show-dbg .dbg { display:block; }
@@ -100,15 +104,16 @@ export const PAGE = `<!doctype html>
 <body>
 <div class="app" id="app">
   <header>
-    <div><h1>金霸貓舍 GIMBA CATZ</h1><p>AI 選種顧問・新竹新豐・TICA 註冊貓舍</p></div>
+    <div><h1>金霸貓舍<span class="en"> GIMBA CATZ</span></h1><p>AI 選種顧問・新竹新豐・TICA 註冊貓舍</p></div>
     <div class="sp"></div>
+    <a class="line" href="https://lin.ee/vXS0pzA" target="_blank" rel="noopener">加 LINE 好友</a>
     <button id="resetBtn" type="button">重新開始</button>
   </header>
 
-  <section class="stage" aria-label="依你的偏好畫出的貓咪">
+  <section class="stage" aria-label="依您的偏好畫出的貓咪">
     <div class="shelf s1"></div><div class="shelf s2"></div>
     <div class="frame">GIMBA</div>
-    <div class="nametag" id="nametag"><small>你的理想寶寶</small>說說你的喜好，牠會慢慢成形</div>
+    <div class="nametag" id="nametag"><small>您的理想寶寶</small>說說您的喜好，牠會慢慢成形</div>
     <div class="catwrap unknown" id="catwrap"></div>
     <aside class="notes" aria-label="顧問筆記">
       <h2>顧問筆記</h2>
@@ -120,7 +125,7 @@ export const PAGE = `<!doctype html>
     <div class="who"><b>金霸顧問</b><div class="sp"></div><button id="histBtn" type="button">對話紀錄</button></div>
     <div class="say" id="say" aria-live="polite"></div>
     <form id="f"><input id="m" maxlength="500" placeholder="想問什麼都可以…" autocomplete="off" aria-label="輸入訊息"><button id="send">送出</button></form>
-    <p class="note">AI 測試版，對話會記錄用於改進。價格與可訂的寶寶以貓舍主人回覆為準。</p>
+    <p class="note">AI 測試版，對話會記錄用於改進。價格與可訂的寶寶以貓舍老闆回覆為準。</p>
   </section>
 </div>
 
@@ -129,7 +134,7 @@ export const PAGE = `<!doctype html>
 <script>
 ${CAT_JS}
 var KEY = "gimba-chat-v3";
-var GREETING = "你好！我是金霸貓舍的 AI 選種顧問。\\n跟我聊聊你喜歡什麼樣的貓、家裡的狀況，上面這隻貓會慢慢變成你心目中的樣子。";
+var GREETING = "您好！我是金霸貓舍的 AI 選種顧問。\\n跟我聊聊您喜歡什麼樣的貓、家裡的狀況，上面這隻貓會慢慢變成您心目中的樣子。";
 var STARTERS = ["我想養貓，幫我挑適合的品種", "我喜歡短腿、藍色的", "英短大概多少錢？", "可以去貓舍看貓嗎？"];
 var NOTES = [["breed","喜歡的類型"],["color","喜歡的毛色"],["budget","預算"],["home","居住環境"],["experience","養貓經驗"]];
 var app = document.getElementById("app"), say = document.getElementById("say");
@@ -155,8 +160,8 @@ function drawCat(hop) {
   paint(catSvg, lookFromSlots(s), hop && look !== lastLook);
   lastLook = look;
   document.getElementById("nametag").innerHTML = known
-    ? "<small>你的理想寶寶</small>" + esc(lookName(s))
-    : "<small>你的理想寶寶</small>說說你的喜好，牠會慢慢成形";
+    ? "<small>您的理想寶寶</small>" + esc(lookName(s))
+    : "<small>您的理想寶寶</small>說說您的喜好，牠會慢慢成形";
   document.getElementById("notes").innerHTML = NOTES.map(function (n) {
     var v = s[n[0]] || "";
     return '<li class="' + (v ? "done" : "") + '"><span class="k">' + (v ? "✓" : "") + '</span><span class="t">' + n[1] + '<span class="v">' + esc(v) + "</span></span></li>";

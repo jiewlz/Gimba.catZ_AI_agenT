@@ -11,27 +11,27 @@ import { detect, guardReply, type GuardReport } from "./guard";
 
 // Fallback lines when a reply still breaks a rule after one rewrite (unit 8 guardrail)
 const SAFE_ASK: Record<string, string> = {
-  breed: "想先請教一下，你喜歡哪一種類型的寶寶呢？長腿、短腿、長毛、短毛，或是喜歡的毛色都可以說說看。",
-  budget: "方便說一下你大概的預算嗎？這樣我們比較好幫你配對。",
-  home: "想了解一下你的居住環境，例如房型、空間大小，家裡有沒有小孩或其他寵物呢？",
+  breed: "想先請教一下，您喜歡哪一種類型的寶寶呢？長腿、短腿、長毛、短毛，或是喜歡的毛色都可以說說看。",
+  budget: "方便說一下您大概的預算嗎？這樣我們比較好幫您配對。",
+  home: "想了解一下您的居住環境，例如房型、空間大小，家裡有沒有小孩或其他寵物呢？",
   experience: "之前有養過貓嗎？還是這次是第一次養呢？",
 };
-const SAFE_SIDE = "你問的這部分我請貓舍主人跟你聊。";
-const SAFE_RECOMMEND = "依你的需求，我請貓舍主人直接幫你挑選比較適合的寶寶，也會跟你說明價格區間和照護重點。";
+const SAFE_SIDE = "您問的這部分我請貓舍老闆跟您聊。";
+const SAFE_RECOMMEND = "依您的需求，我請貓舍老闆直接幫您挑選比較適合的寶寶，也會跟您說明價格區間和照護重點。";
 const SAFE_VISIT =
-  "看貓採全預約制，我們會先傳目前可看的貓咪資料與價格區間給你，再約時間，看了不喜歡完全沒關係。貓舍地址是新竹縣新豐鄉明新八街 9 號，週一到週日下午 2 點到晚上 10 點都可以預約看貓。";
-const SAFE_EXISTING = "你的問題我已經轉給貓舍主人。";
+  "看貓採全預約制，我們會先傳目前可看的貓咪資料與價格區間給您，再約時間，看了不喜歡完全沒關係。貓舍地址是新竹縣新豐鄉明新八街 9 號，週一到週日下午 2 點到晚上 10 點都可以預約看貓。";
+const SAFE_EXISTING = "您的問題我已經轉給貓舍老闆。";
 
 // Fixed lines: the flow decides when they appear, never the model.
 export const INTRO =
-  "你好！我是金霸貓舍的 AI 選種顧問，可以幫你了解英短血系五個品種（英短、英長、曼赤肯、長毛曼赤肯、小步舞曲）的個性、價格區間和看貓流程。想養貓的話，跟我說說你的狀況吧！";
+  "您好！我是金霸貓舍的 AI 選種顧問，可以幫您了解英短血系五個品種（英短、英長、曼赤肯、長毛曼赤肯、小步舞曲）的個性、價格區間和看貓流程。想養貓的話，跟我說說您的狀況吧！";
 export const LEAD_INVITE =
-  "如果想看看目前有哪些寶寶，方便留個稱呼跟聯絡方式嗎？貓舍主人會直接跟你聯繫。";
-export const EXISTING_NOTE = "接貓的實際日期和安排，貓舍主人會直接跟你聯繫確認。";
+  "如果想看看目前有哪些寶寶，方便留個稱呼跟聯絡方式嗎？貓舍老闆會直接跟您聯繫。";
+export const EXISTING_NOTE = "接貓的實際日期和安排，貓舍老闆會直接跟您聯繫確認。";
 export const BLOCKED =
-  "這個我沒辦法幫忙喔。我是金霸貓舍的 AI 選種顧問，可以陪你了解英短血系五個品種、價格區間和看貓流程，想養貓的話跟我說說你的狀況吧！";
+  "這個我沒辦法幫忙喔。我是金霸貓舍的 AI 選種顧問，可以陪您了解英短血系五個品種、價格區間和看貓流程，想養貓的話跟我說說您的狀況吧！";
 export const THANKS =
-  "收到，謝謝你！我已經把你的需求整理好交給貓舍主人，他會盡快用你留的方式聯繫你。";
+  "收到，謝謝您！我已經把您的需求整理好交給貓舍老闆，老闆會盡快用您留的方式聯繫您。";
 
 const SLOT_KEYS = ["breed", "budget", "home", "experience"] as const;
 type SlotKey = (typeof SLOT_KEYS)[number];
@@ -101,7 +101,7 @@ function addUsage(u: Usage, r: Anthropic.Message) {
 }
 
 function textOf(r: Anthropic.Message): string {
-  if (r.stop_reason === "refusal") return "這個問題我請貓舍主人直接回覆你。";
+  if (r.stop_reason === "refusal") return "這個問題我請貓舍老闆直接回覆您。";
   return r.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim();
 }
 

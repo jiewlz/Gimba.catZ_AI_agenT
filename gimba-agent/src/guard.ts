@@ -55,6 +55,8 @@ const META = /知識庫|資料庫|knowledge|<\/?\w+>|沒有.{0,20}的資料|沒�
 const GUARANTEE = /保證.{0,3}(過件|通過|核准|會過)|一定(會)?(過件|通過|核准|會過)|百分之百|100\s*%/;
 const WRONG_CONTRACT = /(買賣|飼育|領養|購買)(合約|契約)/;
 const OTHER_CATTERY = /(其他|別的|別家)貓舍|有做.{0,12}的貓舍|(選擇|挑選|找)(一[間家])?(有|信譽|合格|正規|專業|可靠).{0,10}貓舍/;
+// the owner is "老闆" with no gender: a 他／她 doing something in the reply is the model inventing one
+const PRONOUN = /[她他](會|比我|再|來|本人|直接)/;
 const INVITE = /(留|給|提供).{0,6}(聯絡|LINE|電話|稱呼)|歡迎私訊/;
 
 export interface RuleContext {
@@ -69,6 +71,8 @@ export function ruleCheck(text: string, ctx: RuleContext): { text: string; fixes
   const flags: string[] = [];
   let t = text;
   if (t.includes("訂金")) { t = t.replaceAll("訂金", "定金"); fixes.push("訂金→定金"); }
+  // the cattery addresses customers as 您 (owner's rule); 迷你 is a word, not the pronoun
+  if (/(?<!迷)你/.test(t)) { t = t.replace(/(?<!迷)你/g, "您"); fixes.push("你→您"); }
   const md = t.replace(/\*\*|__|`/g, "").replace(/^\s*(#{1,6}|[-*•]|\d+\.)\s+/gm, "");
   if (md !== t) { t = md.replace(/\n{3,}/g, "\n\n"); fixes.push("去掉 Markdown"); }
 
@@ -81,6 +85,7 @@ export function ruleCheck(text: string, ctx: RuleContext): { text: string; fixes
   if ((t.match(/[^。！？\n]+[。！？]?/g) ?? []).some((x) => !/[？?]$/.test(x) && GUARANTEE.test(x) && !/(不能|無法|沒辦法|不敢|不會).{0,4}保證|不保證/.test(x))) flags.push("保證過件或打包票");
   if (WRONG_CONTRACT.test(t)) flags.push("合約名稱錯誤");
   if (OTHER_CATTERY.test(t)) flags.push("叫客人去找別的貓舍");
+  if (PRONOUN.test(t)) flags.push("用他／她稱呼貓舍老闆（性別不在資料裡）");
   if (ctx.inviteFollows && INVITE.test(t)) flags.push("自己邀請留聯絡方式（後面已有固定句）");
   return { text: t, fixes, flags };
 }

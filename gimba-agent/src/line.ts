@@ -17,11 +17,11 @@ const STATE_TTL = 30 * 24 * 3600; // a conversation is forgotten after 30 quiet 
 const MAX_MESSAGE_CHARS = 500;
 const MAX_TURNS = 30;
 
-const NOT_TEXT = "我目前只看得懂文字訊息喔。想養貓的話，跟我說說你喜歡的品種、預算和家裡的狀況吧！";
+const NOT_TEXT = "我目前只看得懂文字訊息喔。想養貓的話，跟我說說您喜歡的品種、預算和家裡的狀況吧！";
 const TOO_LONG = "訊息有點長，可以分成幾句短一點的再傳一次嗎？";
-const AT_LIMIT = "我們聊了很多了，接下來我請貓舍主人直接跟你聊，他看到會盡快回覆你。";
-const BUSY = "系統暫時出了點問題，請過一下再傳一次，或等貓舍主人直接回覆你。";
-const OWNER_HELP = "老闆你好！傳「本週」看這週到目前的數字，傳「上週」看上週週報。其他訊息會當成一般客人回答，可以拿來測試。";
+const AT_LIMIT = "我們聊了很多了，接下來我請貓舍老闆直接跟您聊，老闆看到會盡快回覆您。";
+const BUSY = "系統暫時出了點問題，請過一下再傳一次，或等貓舍老闆直接回覆您。";
+const OWNER_HELP = "老闆您好！傳「本週」看這週到目前的數字，傳「上週」看上週週報。其他訊息會當成一般客人回答，可以拿來測試。";
 
 // When no access token is set (local dev), outgoing messages are kept here instead of sent to LINE.
 export const OUTBOX: { kind: "reply" | "push" | "loading"; to: string; text: string }[] = [];
