@@ -79,6 +79,12 @@ const d1 = await send([textEvent(CUSTOMER, "謝謝", dupId)]);
 const d2 = await send([textEvent(CUSTOMER, "謝謝", dupId)], 1);
 check("重送的同一事件只處理一次", d1.fresh.length === 1 && d2.fresh.length === 0, `${d1.fresh.length} / ${d2.fresh.length}`);
 
+// 6b. LINE has no "start over" button: asking in words wipes the memory
+const rs = await send([textEvent(CUSTOMER, "清除我的資料再問一次")]);
+check("說「清除我的資料」會清掉記憶", rs.fresh[0]?.text.includes("重新開始"), rs.fresh[0]?.text.slice(0, 20));
+const after = await send([textEvent(CUSTOMER, "我想買貓")]);
+check("清掉後從頭問（不是回感謝句）", !!after.fresh[0] && !after.fresh[0].text.includes("謝謝"), after.fresh[0]?.text.slice(0, 30));
+
 // 7. the owner asks for this week's numbers
 const rep = await send([textEvent(OWNER, "本週")]);
 check("老闆傳「本週」拿到數字", rep.fresh[0]?.text.includes("新對話"), "");

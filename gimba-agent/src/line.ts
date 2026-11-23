@@ -21,6 +21,10 @@ const NOT_TEXT = "我目前只看得懂文字訊息喔。想養貓的話，跟�
 const TOO_LONG = "訊息有點長，可以分成幾句短一點的再傳一次嗎？";
 const AT_LIMIT = "我們聊了很多了，接下來我請貓舍老闆直接跟您聊，老闆看到會盡快回覆您。";
 const BUSY = "系統暫時出了點問題，請過一下再傳一次，或等貓舍老闆直接回覆您。";
+const RESET_DONE = "好的，剛剛聊的內容我都清掉了，我們重新開始。想養貓的話，跟我說說您喜歡的品種、預算和家裡的狀況吧！";
+// LINE has no "start over" button like the web chat: a short message asking to start over or forget wipes the memory
+const RESET = /重新開始|重來|從頭開始|從頭來|重新來過|清除|清掉|刪除|忘記我|忘掉/;
+const RESET_MAX_CHARS = 16; // only a short message is a request to start over, not a sentence that happens to contain the word
 const OWNER_HELP = "老闆您好！傳「本週」看這週到目前的數字，傳「上週」看上週週報。其他訊息會當成一般客人回答，可以拿來測試。";
 
 // When no access token is set (local dev), outgoing messages are kept here instead of sent to LINE.
@@ -138,6 +142,10 @@ async function handleEvent(env: Env, ev: LineEvent) {
 
   if (text.length > MAX_MESSAGE_CHARS) return reply(env, ev.replyToken, userId, TOO_LONG);
   const key = `line:${userId}`;
+  if (text.length <= RESET_MAX_CHARS && RESET.test(text)) {
+    await env.KV.delete(key);
+    return reply(env, ev.replyToken, userId, RESET_DONE);
+  }
   const state: State = (await env.KV.get<State>(key, "json")) ?? newState();
   if (state.turn >= MAX_TURNS) return reply(env, ev.replyToken, userId, AT_LIMIT);
 

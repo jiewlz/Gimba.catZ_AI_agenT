@@ -7,7 +7,7 @@
 一個大腦、多個入口。選貓流程只寫一次（`src/agent.ts`），入口各自轉接：
 
 - 網頁聊天室：`GET /` 與 `POST /api/chat`（單元 6–7，給老師和同學試用）
-- LINE 官方帳號：`POST /line/webhook`（單元 9，`src/line.ts`）。先驗 LINE 簽章，馬上回 200，再在背景跑同一個 `handleMessage`、用 reply API 回覆。LINE 沒有瀏覽器存記憶，對話記憶存在 KV（`line:<userId>`，30 天沒講話就忘記）。
+- LINE 官方帳號：`POST /line/webhook`（單元 9，`src/line.ts`）。先驗 LINE 簽章，馬上回 200，再在背景跑同一個 `handleMessage`、用 reply API 回覆。LINE 沒有瀏覽器存記憶，對話記憶存在 KV（`line:<userId>`，30 天沒講話就忘記）。LINE 沒有「重新開始」按鈕，客人傳 16 字以內、含「重新開始／重來／清除／刪除／忘記我」的訊息就清掉記憶。
 - IG、FB 私訊：之後要接的話照 LINE 的做法加一個入口，不改大腦
 
 執行環境是 Cloudflare Workers，模型是 Claude Haiku 5.5（`claude-haiku-5-5`）。線上網址：https://gimba-agent.gimba-agent.workers.dev（2026-11-14 首次部署）。紀錄試算表：https://docs.google.com/spreadsheets/d/1DXihL4tnGZrNCU0LMCz_3n2l4ZevicRdxRvY_gBKr3Y/edit 。每一輪對話、抽到的需求、token 用量和留下的名單，都透過 `apps-script/Code.gs` 寫進 Google 試算表。
