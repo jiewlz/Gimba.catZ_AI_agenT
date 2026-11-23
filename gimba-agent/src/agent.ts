@@ -7,6 +7,20 @@ import RECOMMEND from "../prompts/recommend.md";
 import VISIT from "../prompts/visit.md";
 import EXISTING from "../prompts/existing.md";
 import { byTitle, render, sectionsForNeeds, sectionsForQuestion } from "./knowledge";
+import { detect, guardReply, type GuardReport } from "./guard";
+
+// Fallback lines when a reply still breaks a rule after one rewrite (unit 8 guardrail)
+const SAFE_ASK: Record<string, string> = {
+  breed: "想先請教一下，你喜歡哪一種類型的寶寶呢？長腿、短腿、長毛、短毛，或是喜歡的毛色都可以說說看。",
+  budget: "方便說一下你大概的預算嗎？這樣我們比較好幫你配對。",
+  home: "想了解一下你的居住環境，例如房型、空間大小，家裡有沒有小孩或其他寵物呢？",
+  experience: "之前有養過貓嗎？還是這次是第一次養呢？",
+};
+const SAFE_SIDE = "你問的這部分我請貓舍主人跟你聊。";
+const SAFE_RECOMMEND = "依你的需求，我請貓舍主人直接幫你挑選比較適合的寶寶，也會跟你說明價格區間和照護重點。";
+const SAFE_VISIT =
+  "看貓採全預約制，我們會先傳目前可看的貓咪資料與價格區間給你，再約時間，看了不喜歡完全沒關係。貓舍地址是新竹縣新豐鄉明新八街 9 號，週一到週日下午 2 點到晚上 10 點都可以預約看貓。";
+const SAFE_EXISTING = "你的問題我已經轉給貓舍主人。";
 
 // Fixed lines: the flow decides when they appear, never the model.
 export const INTRO =
@@ -14,6 +28,8 @@ export const INTRO =
 export const LEAD_INVITE =
   "如果想看看目前有哪些寶寶，方便留個稱呼跟聯絡方式嗎？貓舍主人會直接跟你聯繫。";
 export const EXISTING_NOTE = "接貓的實際日期和安排，貓舍主人會直接跟你聯繫確認。";
+export const BLOCKED =
+  "這個我沒辦法幫忙喔。我是金霸貓舍的 AI 選種顧問，可以陪你了解英短血系五個品種、價格區間和看貓流程，想養貓的話跟我說說你的狀況吧！";
 export const THANKS =
   "收到，謝謝你！我已經把你的需求整理好交給貓舍主人，他會盡快用你留的方式聯繫你。";
 
@@ -38,6 +54,7 @@ const Analysis = z.object({
   wants_visit: z.boolean(),
   existing_customer: z.boolean(),
   side_question: z.string(),
+  attack: z.boolean(),
 });
 type Analysis = z.infer<typeof Analysis>;
 
@@ -67,6 +84,12 @@ export interface Result {
   path: string;
   intent: string;
   usage: Usage;
+  guard: GuardReport | null;
+  audit?: { flags: string[]; usage: Usage }; // eval only: an independent re-check of what the customer finally sees
+}
+export interface Options {
+  guard?: boolean; // default on; the eval script turns it off to measure the raw replies
+  audit?: boolean; // eval only
 }
 
 const HISTORY_TURNS = 6;
@@ -86,7 +109,7 @@ function transcript(history: Turn[]): string {
   return history.map((t) => `${t.role === "user" ? "客人" : "顧問"}：${t.content}`).join("\n");
 }
 
-export async function handleMessage(client: Anthropic, model: string, prev: State, message: string): Promise<Result> {
+export async function handleMessage(client: Anthropic, model: string, prev: State, message: string, opts: Options = {}): Promise<Result> {
   const state: State = structuredClone(prev);
   const usage: Usage = { calls: 0, input: 0, output: 0 };
   state.turn++;
@@ -106,7 +129,32 @@ export async function handleMessage(client: Anthropic, model: string, prev: Stat
     ],
   });
   addUsage(usage, analysisRes);
-  const a: Analysis = analysisRes.parsed_output ?? { ...state.slots, intent: "other", wants_visit: false, existing_customer: false, side_question: "" };
+  const a: Analysis = analysisRes.parsed_output ?? { ...state.slots, intent: "other", wants_visit: false, existing_customer: false, side_question: "", attack: false };
+  let guard: GuardReport | null = null;
+  let audit: Result["audit"];
+  const useGuard = opts.guard !== false;
+  /** Unit 8: every model-written reply goes through the guardrail before it is sent. */
+  async function checked(draft: string, kb: string, inviteFollows: boolean, safeLine: string): Promise<string> {
+    const customer = `${message}\n${Object.values(state.slots).join("\n")}`;
+    let out = draft;
+    if (useGuard) {
+      const g = await guardReply(client, model, draft, { knowledge: kb, customer, inviteFollows, question: message, safeLine }, usage);
+      guard = g.report;
+      out = g.reply;
+    }
+    if (opts.audit) {
+      const au: Usage = { calls: 0, input: 0, output: 0 };
+      const d = await detect(client, model, out, { knowledge: kb, customer, inviteFollows, question: message }, au);
+      audit = { flags: [...d.flags, ...d.fixes.map((f) => `需要自動修正：${f}`)], usage: au };
+    }
+    return out;
+  }
+
+  // Input guardrail: injection, role-play or "I am the owner" tricks get a fixed line and change nothing
+  if (a.attack && useGuard) {
+    state.history = [...state.history, { role: "user" as const, content: message }, { role: "assistant" as const, content: BLOCKED }].slice(-HISTORY_TURNS * 2);
+    return { reply: BLOCKED, state, path: "blocked_input", intent: a.intent, usage, guard: null };
+  }
 
   // Code-level merge: a blank never erases what was already collected; a new value replaces the old one.
   for (const k of [...SLOT_KEYS, "name", "contact", "color"] as const) {
@@ -122,6 +170,7 @@ export async function handleMessage(client: Anthropic, model: string, prev: Stat
     state.stage = "done";
   } else if (a.existing_customer) {
     // Already ordered: answer from the knowledge base, never restart the sales interview
+    const exKb = render(sectionsForQuestion(a.side_question || message, 3));
     const exRes = await client.messages.create({
       model,
       max_tokens: 500,
@@ -131,19 +180,20 @@ export async function handleMessage(client: Anthropic, model: string, prev: Stat
         {
           role: "user",
           content: `<knowledge>
-${render(sectionsForQuestion(a.side_question || message, 3))}
+${exKb}
 </knowledge>
 <latest_message>${message}</latest_message>`,
         },
       ],
     });
     addUsage(usage, exRes);
-    reply = `${textOf(exRes)}
+    reply = `${await checked(textOf(exRes), exKb, false, SAFE_EXISTING)}
 
 ${EXISTING_NOTE}`;
     path = "existing_customer";
   } else if (a.wants_visit && (state.stage === "idle" || state.stage === "interview")) {
     // Wanting to visit is the strongest buying signal: skip the interview and invite right away
+    const visitKb = render(byTitle("看貓流程"));
     const visitRes = await client.messages.create({
       model,
       max_tokens: 400,
@@ -152,12 +202,12 @@ ${EXISTING_NOTE}`;
       messages: [
         {
           role: "user",
-          content: `<knowledge>\n${render(byTitle("看貓流程"))}\n</knowledge>\n<latest_message>${message}</latest_message>`,
+          content: `<knowledge>\n${visitKb}\n</knowledge>\n<latest_message>${message}</latest_message>`,
         },
       ],
     });
     addUsage(usage, visitRes);
-    reply = `${textOf(visitRes)}\n\n${LEAD_INVITE}`;
+    reply = `${await checked(textOf(visitRes), visitKb, true, SAFE_VISIT)}\n\n${LEAD_INVITE}`;
     path = "visit";
     state.stage = "invited";
   } else if (a.intent === "other" && state.stage === "idle") {
@@ -183,7 +233,7 @@ ${EXISTING_NOTE}`;
         ],
       });
       addUsage(usage, askRes);
-      reply = textOf(askRes);
+      reply = await checked(textOf(askRes), kb, false, (a.side_question ? SAFE_SIDE : "") + SAFE_ASK[missing[0]]);
       path = `ask_${missing[0]}`;
     } else {
       // 3. All needs known: recommend from the knowledge base, then the fixed invite
@@ -202,12 +252,12 @@ ${EXISTING_NOTE}`;
         ],
       });
       addUsage(usage, recRes);
-      reply = `${textOf(recRes)}\n\n${LEAD_INVITE}`;
+      reply = `${await checked(textOf(recRes), kb, true, SAFE_RECOMMEND)}\n\n${LEAD_INVITE}`;
       path = state.stage === "interview" ? "recommend" : "recommend_again";
       if (state.stage === "interview") state.stage = "invited";
     }
   }
 
   state.history = [...state.history, { role: "user" as const, content: message }, { role: "assistant" as const, content: reply }].slice(-HISTORY_TURNS * 2);
-  return { reply, state, path, intent: a.intent, usage };
+  return { reply, state, path, intent: a.intent, usage, guard, audit };
 }

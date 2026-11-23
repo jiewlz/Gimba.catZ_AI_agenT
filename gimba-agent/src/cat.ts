@@ -40,6 +40,7 @@ function palette(p){
   var under;
   if(p.pat==='silver'||p.pat==='smoke') under='#f2f0eb';
   else if(p.red==='red') under=p.dil?'#f4e0c6':'#efc390';
+  else if(p.eu==='c') under='#f2dccd';                  // 紫金：粉米色底
   else under=p.dil?'#efd6b0':'#e8b977';
   var s0,s1,s2,bib;
   if(p.pat==='solid'){s0=s1=s2=base;bib=0}
@@ -48,13 +49,15 @@ function palette(p){
   else if(p.lvl===11){s0=base;s1=mix(base,under,.5);s2=under;bib=.9}
   else{s0=mix(base,under,.35);s1=mix(base,under,.78);s2=under;bib=1}
   if(p.pat!=='solid'&&p.pat!=='smoke') patch=mix(patch,under,.3);
-  var eye=(p.pat==='golden')?'#4e9852':(p.pat==='silver'?'#5fae6b':'#d4892a');
+  var eye=(p.pat==='golden'&&p.red==='none')?'#4e9852':(p.pat==='silver'?'#5fae6b':'#d4892a');
   var nose=(p.pat==='solid'||p.pat==='smoke')&&(p.eu==='n')&&p.red==='none'?'#4a3c37':(p.dil?'#c99aa0':'#bf6b5c');
   var point=s0;
   if(p.pt){s0=mix(s0,'#f4ede1',.82);s1=mix(s1,'#f4ede1',.82);s2=mix(s2,'#f6f0e6',.65);eye='#5b8fd6';}
   var shd=p.pat==='golden'||p.pat==='silver';
   var ring=shd?[.75,.35,0][p.tiN]:0, strp=shd&&p.tiN===0?.45:0;
-  return {pt:p.pt?1:0,point:point,ring:ring,strp:strp,base:base,s0:s0,s1:s1,s2:s2,under:under,bib:bib,patch:patch,eye:eye,nose:nose,pad:p.pat==='solid'?mix(base,'#ffffff',.14):mix(s2,'#ffffff',.25)};
+  var pad=p.pat==='solid'?mix(base,'#ffffff',.14):mix(s2,'#ffffff',.25);
+  if(p.allwhite){s0=s1=s2=point='#f5f2ec';bib=0;ring=0;strp=0;nose='#e7a19a';pad='#efb7b0'}
+  return {pt:p.pt?1:0,point:point,ring:ring,strp:strp,base:base,s0:s0,s1:s1,s2:s2,under:under,bib:bib,patch:patch,eye:eye,nose:nose,pad:pad};
 }
 var uid=0;
 function catSVG(){
@@ -122,25 +125,42 @@ function paint(svg,p,hop){
   if(hop){svg.classList.remove('hop');void svg.getBoundingClientRect();svg.classList.add('hop')}
 }
 
-/* Customer words -> look. Unknown parts stay at a neutral blue British shorthair. */
+/* Customer words -> look. Unknown parts stay at a neutral blue British shorthair.
+   Each part of the colour is read on its own (base colour, red/tortie, pattern, white, points),
+   so combinations such as 藍白, 藍金漸層, 銀虎斑, 三花, 海豹重點 come out right. */
 function lookFromSlots(s){
-  var breed=s.breed||'', color=s.color||'';
-  var p={letter:'a',eu:'a',red:'none',dil:true,pat:'solid',lvl:11,tiN:2,white:0,legs:0,pt:false,longhair:false};
+  var breed=s.breed||'';
+  var c=(s.color||'').replace(/乳白/g,'奶油');           // 台灣說的乳白是奶油色
+  var p={letter:'a',eu:'a',red:'none',dil:true,pat:'solid',lvl:11,tiN:2,white:0,legs:0,pt:false,longhair:false,allwhite:false};
   if(/短腿|曼赤肯|小步舞曲/.test(breed)) p.legs=1;
-  if(/長毛|英長/.test(breed+color)) p.longhair=true;
-  var dil=/藍|淡|奶油|丁香|紫/.test(color);
-  if(/銀/.test(color)){p.pat='silver';p.eu=dil?'a':'n';p.dil=dil}
-  else if(/金/.test(color)){p.pat='golden';p.eu=dil?'a':'n';p.dil=dil}
-  else if(/煙/.test(color)){p.pat='smoke';p.eu=dil?'a':'n';p.dil=dil}
-  else if(/玳瑁/.test(color)){p.red='tortie';p.eu=dil?'a':'n';p.dil=dil}
-  else if(/奶油/.test(color)){p.red='red';p.dil=true}
-  else if(/紅|橘|橙/.test(color)){p.red='red';p.dil=false}
-  else if(/黑/.test(color)){p.eu='n';p.dil=false}
-  else if(/巧克力|咖啡/.test(color)){p.eu='b';p.dil=false}
-  else if(/淡紫|丁香|紫/.test(color)){p.eu='c';p.dil=true}
-  else if(/白/.test(color)&&!/雙色/.test(color)){p.white=2}
-  if(/雙色|賓士/.test(color)) p.white=1;
-  if(/重點|海豹|暹羅/.test(color)) p.pt=true;
+  if(/長毛|英長/.test(breed+c)) p.longhair=true;
+  // pattern
+  var tabby=/虎斑|斑紋|條紋|鯖魚|古典斑/.test(c);
+  if(/銀/.test(c)) p.pat='silver';
+  else if(/金/.test(c)||tabby) p.pat='golden';
+  else if(/煙/.test(c)) p.pat='smoke';
+  if(tabby) p.tiN=0;
+  if(/黑金|黑銀|深/.test(c)) p.lvl=25;                  // 黑金：尖端黑得比較多的漸層
+  // red series
+  if(/玳瑁|三花/.test(c)) p.red='tortie';
+  else if(/奶油/.test(c)) p.red='red';
+  else if(/紅|橘|橙|薑/.test(c)) p.red='red';
+  // base colour: named > pattern default (black) > neutral blue
+  var named=true;
+  if(/淡紫|丁香|紫/.test(c)) p.eu='c';
+  else if(/肉桂/.test(c)) p.eu='o';
+  else if(/巧克力|咖啡|棕/.test(c)) p.eu='b';
+  else if(/藍|灰/.test(c)) p.eu='a';
+  else if(/黑|海豹/.test(c)) p.eu='n';
+  else named=false;
+  if(!named) p.eu=(p.pat!=='solid'||p.red==='tortie'||/重點|暹羅/.test(c))?'n':'a';
+  p.dil=/^[ac]$/.test(p.eu)||/奶油|淡/.test(c);
+  if(p.red==='red'&&!/奶油|淡/.test(c)) p.dil=false;
+  // white
+  var other=/藍|灰|黑|奶油|紅|橘|橙|金|銀|煙|玳瑁|三花|巧克力|咖啡|棕|肉桂|淡紫|丁香|紫|虎斑|斑|重點|海豹|暹羅/.test(c);
+  if(/雙色|賓士|三花|梵/.test(c)||(/白/.test(c)&&other)) p.white=1;
+  else if(/白/.test(c)) p.allwhite=true;
+  if(/重點|暹羅|海豹/.test(c)) p.pt=true;
   return p;
 }
 function lookName(s){

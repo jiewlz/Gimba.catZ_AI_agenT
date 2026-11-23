@@ -4,9 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --test-scheduled",
     "deploy": "wrangler deploy",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "eval": "node tests/eval.mjs",
+    "test:line": "node tests/line.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",

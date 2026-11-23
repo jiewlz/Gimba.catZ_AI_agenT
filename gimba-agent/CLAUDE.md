@@ -7,7 +7,8 @@
 一個大腦、多個入口。選貓流程只寫一次（`src/agent.ts`），入口各自轉接：
 
 - 網頁聊天室：`GET /` 與 `POST /api/chat`（單元 6–7，給老師和同學試用）
-- LINE、IG、FB 私訊與留言：單元 9 再加 webhook 入口，不改大腦
+- LINE 官方帳號：`POST /line/webhook`（單元 9，`src/line.ts`）。先驗 LINE 簽章，馬上回 200，再在背景跑同一個 `handleMessage`、用 reply API 回覆。LINE 沒有瀏覽器存記憶，對話記憶存在 KV（`line:<userId>`，30 天沒講話就忘記）。
+- IG、FB 私訊：之後要接的話照 LINE 的做法加一個入口，不改大腦
 
 執行環境是 Cloudflare Workers，模型是 Claude Haiku 5.5（`claude-haiku-5-5`）。線上網址：https://gimba-agent.gimba-agent.workers.dev（2026-11-14 首次部署）。紀錄試算表：https://docs.google.com/spreadsheets/d/1DXihL4tnGZrNCU0LMCz_3n2l4ZevicRdxRvY_gBKr3Y/edit 。每一輪對話、抽到的需求、token 用量和留下的名單，都透過 `apps-script/Code.gs` 寫進 Google 試算表。
 
@@ -19,6 +20,10 @@
 4. 需求問齊：依需求挑出知識庫的相關段落，產生推薦，再由程式接上固定的導流句。
 5. 客人留下聯絡方式：寫進名單，回固定的感謝句。
 
+Guardrail（單元 8，`src/guard.ts`）：分析時多判斷 attack，注入直接回固定句；模型寫的每一則回覆送出前先過規則、再由檢查員（`prompts/check.md`）逐句比對知識庫，有問題交給修正員（`prompts/rewrite.md`）改寫一次，改寫後再完整檢查一次，還不過就換成該步驟的安全句。網頁的對話記憶用 `STATE_SECRET` 簽章。改 prompt、知識庫或流程後跑 `npm run eval`（本機 `.dev.vars` 要有 `ALLOW_EVAL=1`），被攔下的回覆要人工看過。
+
+排程與通知（單元 9，`src/stats.ts`）：網頁和 LINE 每一輪都把數字累加進 KV 的本週計數（新對話、推薦、名單、檢查結果、費用）。有人留下聯絡方式，馬上 LINE 推播給貓舍主人（`LINE_OWNER_ID`）；每週一早上 9 點（cron `0 1 * * MON`，UTC）推播上週週報。主人在 LINE 傳「本週」或「上週」可以隨時看數字。
+
 導流句和自我介紹是程式裡的固定文字，不交給模型決定，這是前五週測試的結論（模型有內容可講時常忘記導流）。
 
 ## 規則（改 prompt、知識庫或程式時都要遵守）
@@ -27,6 +32,7 @@
 - 合約一律叫「寵物定型化契約書」；寫「定金」，不寫「訂金」。
 - 分期不保證過件，只能說「通常都能通過審核」，細節由真人回覆。
 - 模型只能用 `knowledge/` 裡的資料替貓舍說話；外部資料和一般常識不能用「我們」的口氣講。
+- LINE 的 Channel secret、access token、主人的 user ID 也一樣只放 Cloudflare secrets。
 - API 金鑰和試算表網址只放在 Cloudflare secrets 或本機 `.dev.vars`，絕不寫進程式或 commit。
 - 只有使用者明確要求時才推 GitHub 或部署。
 
@@ -37,6 +43,7 @@
 - `src/`：Worker 程式。`agent.ts` 是業務流程，`knowledge.ts` 挑段落，`log.ts` 寫試算表，`page.ts` 是聊天室網頁。
 - `apps-script/Code.gs`：貼進紀錄試算表的 Apps Script，接收紀錄。
 - `tests/scenarios.md`：單元 6–7 的測試題。
+- `tests/eval.mjs`：單元 8 Guardrail 評測。`tests/line.mjs`：單元 9 LINE 入口的本機測試（用 `.dev.vars` 的 LINE_CHANNEL_SECRET 簽假事件，沒有 access token 時回覆存在 `/api/dev/outbox`，不會真的送出）。
 
 ## 指令
 
@@ -45,4 +52,6 @@ npm install
 npm run dev      # 本機測試，金鑰放在 .dev.vars
 npm run check    # TypeScript 型別檢查
 npm run deploy   # 部署到 Cloudflare（使用者同意後才跑）
+npm run eval     # Guardrail 評測：18 題，關／開各跑兩次（先 npm run dev）
+npm run test:line  # LINE 入口、記憶、名單推播、週報排程的本機測試（先 npm run dev）
 ```

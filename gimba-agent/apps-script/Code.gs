@@ -3,8 +3,8 @@
  * 貼進紀錄試算表的「擴充功能 → Apps Script」，在「專案設定 → 指令碼屬性」新增 LOG_SECRET，
  * 再「部署 → 新增部署作業 → 網頁應用程式」，執行身分選「我」，存取權選「所有人」。
  */
-const TURN_HEADERS = ['時間', '通路', '對話編號', '第幾輪', '客人訊息', '意圖', '流程', '階段', '品種', '預算', '居住環境', '養貓經驗', '回覆', '模型呼叫次數', '輸入 tokens', '輸出 tokens', '成本 USD'];
-const TURN_KEYS = ['time', 'channel', 'session', 'turn', 'message', 'intent', 'path', 'stage', 'breed', 'budget', 'home', 'experience', 'reply', 'calls', 'input_tokens', 'output_tokens', 'cost_usd'];
+const TURN_HEADERS = ['時間', '通路', '對話編號', '第幾輪', '客人訊息', '意圖', '流程', '階段', '品種', '預算', '居住環境', '養貓經驗', '回覆', '模型呼叫次數', '輸入 tokens', '輸出 tokens', '成本 USD', '檢查結果', '檢查發現', '修正前回覆'];
+const TURN_KEYS = ['time', 'channel', 'session', 'turn', 'message', 'intent', 'path', 'stage', 'breed', 'budget', 'home', 'experience', 'reply', 'calls', 'input_tokens', 'output_tokens', 'cost_usd', 'guard_action', 'guard_flags', 'original_reply'];
 const LEAD_HEADERS = ['時間', '通路', '對話編號', '稱呼', '聯絡方式', '品種', '預算', '居住環境', '養貓經驗'];
 const LEAD_KEYS = ['time', 'channel', 'session', 'name', 'contact', 'breed', 'budget', 'home', 'experience'];
 
@@ -13,6 +13,8 @@ function sheet_(name, headers) {
   let sh = ss.getSheetByName(name);
   if (!sh) sh = ss.insertSheet(name);
   if (sh.getLastRow() === 0) sh.appendRow(headers).setFrozenRows(1);
+  // new columns added later (unit 8 guardrail) get their header too
+  else if (sh.getLastColumn() < headers.length) sh.getRange(1, 1, 1, headers.length).setValues([headers]);
   return sh;
 }
 

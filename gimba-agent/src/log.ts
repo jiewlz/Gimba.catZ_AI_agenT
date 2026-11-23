@@ -31,6 +31,9 @@ export async function logTurn(url: string, secret: string, channel: string, sess
       input_tokens: r.usage.input,
       output_tokens: r.usage.output,
       cost_usd: Number(costUsd(r).toFixed(6)),
+      guard_action: r.guard ? r.guard.action : "",
+      guard_flags: r.guard ? [...r.guard.flags, ...r.guard.fixes].join("；") : "",
+      original_reply: r.guard && r.guard.action !== "pass" ? r.guard.original : "",
     },
     lead:
       r.path === "lead_saved"

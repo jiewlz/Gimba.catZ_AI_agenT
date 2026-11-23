@@ -44,7 +44,8 @@ function bigrams(text: string): Set<string> {
 /** Sections for a side question: the two with the most shared character pairs, or none below the threshold. */
 export function sectionsForQuestion(question: string, limit = 2): Section[] {
   if (!question) return [];
-  const q = bigrams(question);
+  // customers write 訂金 and 合約; the knowledge base says 定金 and 契約書
+  const q = bigrams(question.replaceAll("訂金", "定金").replaceAll("合約", "契約"));
   return SECTIONS.map((s) => {
     const b = bigrams(s.title + s.body);
     let hits = 0;

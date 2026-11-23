@@ -215,7 +215,7 @@ function send(message) {
       } else {
         state = data.state;
         var d = data.debug, s = d.slots;
-        var dbg = "意圖 " + d.intent + "｜流程 " + d.path + "｜" + d.usage.calls + " 次呼叫 " + (d.usage.input + d.usage.output) + " tokens ≈ US$" + d.cost_usd.toFixed(5);
+        var dbg = "意圖 " + d.intent + "｜流程 " + d.path + "｜" + d.usage.calls + " 次呼叫 " + (d.usage.input + d.usage.output) + " tokens ≈ US$" + d.cost_usd.toFixed(5) + (d.guard ? "｜檢查 " + ({ pass: "通過", rewritten: "已改寫", fallback: "換成安全句" }[d.guard.action] || d.guard.action) : "");
         turns.push({ r: "bot", t: data.reply, d: dbg });
         showLine(message, data.reply, dbg, false);
         drawCat(true);
