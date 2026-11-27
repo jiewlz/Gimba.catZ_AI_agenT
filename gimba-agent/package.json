@@ -8,7 +8,8 @@
     "deploy": "wrangler deploy",
     "check": "tsc --noEmit",
     "eval": "node tests/eval.mjs",
-    "test:line": "node tests/line.mjs"
+    "test:line": "node tests/line.mjs",
+    "test:takeover": "node tests/takeover.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",

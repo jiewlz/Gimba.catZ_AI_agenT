@@ -3,7 +3,7 @@ import { handleMessage, newState, type State } from "./agent";
 import { logTurn, costUsd } from "./log";
 import { PAGE } from "./page";
 import { signState, verifyState } from "./guard";
-import { afterTurn, leadText, lineWebhook, notifyOwner, OUTBOX, weeklyReport } from "./line";
+import { afterTurn, DEV_PROFILES, leadText, lineWebhook, notifyOwner, OUTBOX, weeklyReport } from "./line";
 
 export interface Env {
   ANTHROPIC_API_KEY: string;
@@ -91,6 +91,12 @@ export default {
     if (env.ALLOW_EVAL === "1" && url.pathname === "/api/dev/outbox") {
       if (request.method === "DELETE") OUTBOX.length = 0;
       return json(OUTBOX);
+    }
+    // local tests only: what LINE's profile API would answer for a fake user ("!fail" = an API error)
+    if (env.ALLOW_EVAL === "1" && request.method === "POST" && url.pathname === "/api/dev/profile") {
+      const { userId, name } = (await request.json()) as { userId: string; name: string };
+      DEV_PROFILES.set(userId, name);
+      return json({ ok: true });
     }
 
     return new Response("Not found", { status: 404 });
