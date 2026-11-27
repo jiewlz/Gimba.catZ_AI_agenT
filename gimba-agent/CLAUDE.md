@@ -7,7 +7,7 @@
 一個大腦、多個入口。選貓流程只寫一次（`src/agent.ts`），入口各自轉接：
 
 - 網頁聊天室：`GET /` 與 `POST /api/chat`（單元 6–7，給老師和同學試用）
-- LINE 官方帳號：`POST /line/webhook`（單元 9，`src/line.ts`）。先驗 LINE 簽章，馬上回 200，再在背景跑同一個 `handleMessage`、用 reply API 回覆。LINE 沒有瀏覽器存記憶，對話記憶存在 KV（`line:<userId>`，30 天沒講話就忘記）。LINE 沒有「重新開始」按鈕，客人傳 16 字以內、含「重新開始／重來／清除／刪除／忘記我」的訊息就清掉記憶。
+- LINE 官方帳號：`POST /line/webhook`（單元 9，`src/line.ts`）。先驗 LINE 簽章，馬上回 200，再在背景跑同一個 `handleMessage`、用 reply API 回覆。LINE 沒有瀏覽器存記憶，對話記憶存在 KV（`line:<userId>`，30 天沒講話就忘記）。LINE 沒有「重新開始」按鈕，客人傳 16 字以內、含「重新開始／重來／清除／刪除／忘記我」的訊息就清掉記憶。LINE 上很多是已經買過貓、在跟老闆聊天的老客人，所以：自我介紹只說一次（KV `intro:<userId>`，加好友時也算），之後再聊選貓以外的事就不回、留給老闆；沒在選貓訪談中時，只傳「好／謝謝／辛苦了／👌」這類客套話不回；客人連續快速傳好幾句，等 2.5 秒合成一句只回一次（KV `pend:<userId>`；同一個 webhook 裡的多句也先合併）。
 - IG、FB 私訊：之後要接的話照 LINE 的做法加一個入口，不改大腦
 
 執行環境是 Cloudflare Workers，模型是 Claude Haiku 5.5（`claude-haiku-5-5`）。線上網址：https://gimba-agent.gimba-agent.workers.dev（2026-11-14 首次部署）。紀錄試算表：https://docs.google.com/spreadsheets/d/1DXihL4tnGZrNCU0LMCz_3n2l4ZevicRdxRvY_gBKr3Y/edit 。每一輪對話、抽到的需求、token 用量和留下的名單，都透過 `apps-script/Code.gs` 寫進 Google 試算表。
@@ -46,7 +46,7 @@ Guardrail（單元 8，`src/guard.ts`）：分析時多判斷 attack，注入直
 - `src/`：Worker 程式。`agent.ts` 是業務流程，`knowledge.ts` 挑段落，`log.ts` 寫試算表，`page.ts` 是聊天室網頁。
 - `apps-script/Code.gs`：貼進紀錄試算表的 Apps Script，接收紀錄。
 - `tests/scenarios.md`：單元 6–7 的測試題。
-- `tests/eval.mjs`：單元 8 Guardrail 評測。`tests/line.mjs`：單元 9 LINE 入口的本機測試（用 `.dev.vars` 的 LINE_CHANNEL_SECRET 簽假事件，沒有 access token 時回覆存在 `/api/dev/outbox`，不會真的送出）。`tests/takeover.mjs`：老闆用名字和按鈕接手的本機測試（假名字，profile 由 `/api/dev/profile` 假裝）。
+- `tests/eval.mjs`：單元 8 Guardrail 評測。`tests/line.mjs`：單元 9 LINE 入口的本機測試（用 `.dev.vars` 的 LINE_CHANNEL_SECRET 簽假事件，沒有 access token 時回覆存在 `/api/dev/outbox`，不會真的送出）。`tests/takeover.mjs`：老闆用名字和按鈕接手的本機測試（假名字，profile 由 `/api/dev/profile` 假裝）。`tests/chatter.mjs`：老客人閒聊（自我介紹一次、客套話不回）和連發合併的本機測試。
 
 ## 指令
 
@@ -58,4 +58,5 @@ npm run deploy   # 部署到 Cloudflare（使用者同意後才跑）
 npm run eval     # Guardrail 評測：18 題，關／開各跑兩次（先 npm run dev）
 npm run test:line  # LINE 入口、記憶、名單推播、週報排程的本機測試（先 npm run dev）
 npm run test:takeover  # 老闆用名字／按鈕接手、交回、成交的本機測試（先 npm run dev）
+npm run test:chatter   # 老客人閒聊、客套話、連發合併的本機測試（先 npm run dev）
 ```

@@ -34,6 +34,11 @@ const PROFILE_REFRESH_MS = 7 * 24 * 3600_000; // customers can rename themselves
 const RECENT_KEY = "recent:line";
 const RECENT_MAX = 20;
 const PICK_MAX = 5;
+// "ok / thanks / hard work / 👌": closes a chat, it is not a question
+const ACK =
+  /^(?:好的|好喔|好哦|好唷|好呀|好啊|好滴|好|okay|okok|ok|收到|了解|瞭解|知道了|謝謝你|謝謝您|謝謝|謝啦|感謝|感恩|辛苦你了|辛苦您了|辛苦了|沒問題|沒事|不會的|不會|嗯嗯|恩恩|嗯|恩|哈+|笑死|[\s!！~～。.,，]|\p{Extended_Pictographic}|\p{Emoji_Modifier}|️|‍)+$/iu;
+const ACK_MAX_CHARS = 12;
+const SETTLE_MS = 2500; // how long to wait for the next message of a quick burst
 type Verb = "接手" | "交回" | "成交";
 const ACTION: Record<Verb, string> = { 接手: "takeover", 交回: "handback", 成交: "deal" };
 const VERB_OF: Record<string, Verb> = { takeover: "接手", handback: "交回", deal: "成交" };
@@ -274,6 +279,7 @@ async function handleEvent(env: Env, ev: LineEvent) {
 
   if (ev.type === "follow") {
     if (!isOwner) await noteCustomer(env, userId, await sessionOf(userId), "（加了好友）");
+    await env.KV.put(`intro:${userId}`, "1", { expirationTtl: STATE_TTL });
     return reply(env, ev.replyToken, userId, INTRO);
   }
   if (ev.type !== "message") return;
@@ -302,7 +308,7 @@ async function handleEvent(env: Env, ev: LineEvent) {
   // "start over / forget me": wipe the memory, the LINE name and the recent-list entry. Done even while the
   // owner has the chat (it is a data request), but then without a reply that would talk over the owner.
   if (text.length <= RESET_MAX_CHARS && RESET.test(text)) {
-    await Promise.allSettled([env.KV.delete(key), env.KV.delete(`prof:${userId}`), dropRecent(env, session)]);
+    await Promise.allSettled([env.KV.delete(key), env.KV.delete(`prof:${userId}`), env.KV.delete(`intro:${userId}`), dropRecent(env, session)]);
     if (!quiet) return reply(env, ev.replyToken, userId, RESET_DONE);
     return;
   }
@@ -313,6 +319,15 @@ async function handleEvent(env: Env, ev: LineEvent) {
   if (quiet) return;
 
   if (text.length > MAX_MESSAGE_CHARS) return reply(env, ev.replyToken, userId, TOO_LONG);
+  // A short "ok / thanks / 👌" outside an interview closes a chat (usually with the owner): nothing to answer
+  if ([...text].length <= ACK_MAX_CHARS && ACK.test(text)) {
+    const st = await env.KV.get<State>(key, "json");
+    if (!st || st.stage === "idle") return;
+  }
+  // Several quick messages in a row get one answer: only the last one waits through and answers them all
+  const merged = await settle(env, userId, ev.webhookEventId ?? crypto.randomUUID(), text);
+  if (merged === null) return;
+
   const state: State = (await env.KV.get<State>(key, "json")) ?? newState();
   if (await env.KV.get(`member:${userId}`)) state.member = true;
   if (state.turn >= MAX_TURNS) return reply(env, ev.replyToken, userId, AT_LIMIT);
@@ -324,23 +339,46 @@ async function handleEvent(env: Env, ev: LineEvent) {
   let result: Result;
   try {
     const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-    result = await handleMessage(client, env.MODEL, state, text);
+    result = await handleMessage(client, env.MODEL, state, merged);
   } catch (error) {
     console.error("LINE turn failed", error);
     return reply(env, ev.replyToken, userId, BUSY);
   }
   await env.KV.put(key, JSON.stringify(result.state), { expirationTtl: STATE_TTL });
-  await reply(env, ev.replyToken, userId, result.reply);
+  // The self-introduction is said once. Someone who keeps chatting about other things (often an
+  // existing customer talking to the owner) is left to the owner instead of hearing it again.
+  const introAgain = result.path === "intro" && !!(await env.KV.get(`intro:${userId}`));
+  if (!introAgain) await reply(env, ev.replyToken, userId, result.reply);
+  if (result.path === "intro" && !introAgain) await env.KV.put(`intro:${userId}`, "1", { expirationTtl: STATE_TTL });
 
   const after: Promise<unknown>[] = [afterTurn(env, "line", result)];
   // no access token = local test: keep test turns out of the real sheet
-  if (env.LOG_URL && env.LOG_SECRET && env.LINE_CHANNEL_ACCESS_TOKEN) after.push(logTurn(env.LOG_URL, env.LOG_SECRET, "line", session, text, result));
+  const logged = introAgain ? { ...result, reply: "（沒有回覆：自我介紹說過了，留給老闆）" } : result;
+  if (env.LOG_URL && env.LOG_SECRET && env.LINE_CHANNEL_ACCESS_TOKEN) after.push(logTurn(env.LOG_URL, env.LOG_SECRET, "line", session, merged, logged));
   if (result.path === "lead_saved") {
     // the owner usually answers by hand from here: the advisor steps back for 3 days on its own
     after.push(setQuiet(env, userId));
     after.push(lineName(env, userId).then((n) => notifyOwner(env, leadText("LINE", result, n, session))));
   }
   await Promise.allSettled(after);
+}
+
+/**
+ * Quick bursts ("哈囉" "想問一下…" "謝謝") used to get one answer each, worked on at the same time.
+ * Each message joins a short pending list and waits; only the last one of the burst carries on and
+ * answers the whole burst. null = a newer message will answer.
+ */
+async function settle(env: Env, userId: string, id: string, text: string): Promise<string | null> {
+  const key = `pend:${userId}`;
+  type Pending = { id: string; text: string }[];
+  const pend = (await env.KV.get<Pending>(key, "json")) ?? [];
+  pend.push({ id, text });
+  await env.KV.put(key, JSON.stringify(pend.slice(-5)), { expirationTtl: 60 });
+  await new Promise((r) => setTimeout(r, SETTLE_MS));
+  const now = (await env.KV.get<Pending>(key, "json")) ?? pend;
+  if (now.length && now[now.length - 1].id !== id) return null;
+  await env.KV.delete(key);
+  return (now.length ? now : pend).map((p) => p.text).join("\n");
 }
 
 /** The LINE user behind a code: sess:<code>, or a scan of the saved conversations for older customers. */
@@ -471,6 +509,21 @@ export async function lineWebhook(request: Request, env: Env, ctx: ExecutionCont
   }
   // Answer LINE right away; the turns run after the response (one by one, so two quick
   // messages from the same person do not overwrite each other's memory)
+  // LINE sometimes sends a customer's quick messages in one webhook: join them into the last one,
+  // so the burst gets one answer (owner messages stay separate, they may be commands)
+  const lastText = new Map<string, LineEvent>();
+  for (const ev of events) {
+    const uid = ev.source?.userId;
+    if (ev.type !== "message" || ev.message?.type !== "text" || !uid || uid === env.LINE_OWNER_ID) continue;
+    const prev = lastText.get(uid);
+    if (prev?.message) {
+      ev.message.text = `${prev.message.text ?? ""}\n${ev.message.text ?? ""}`;
+      (prev as { merged?: boolean }).merged = true;
+    }
+    lastText.set(uid, ev);
+  }
+  events = events.filter((ev) => !(ev as { merged?: boolean }).merged);
+
   ctx.waitUntil(
     (async () => {
       for (const ev of events) {

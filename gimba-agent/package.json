@@ -9,7 +9,8 @@
     "check": "tsc --noEmit",
     "eval": "node tests/eval.mjs",
     "test:line": "node tests/line.mjs",
-    "test:takeover": "node tests/takeover.mjs"
+    "test:takeover": "node tests/takeover.mjs",
+    "test:chatter": "node tests/chatter.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",

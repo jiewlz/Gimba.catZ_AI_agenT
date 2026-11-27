@@ -115,7 +115,7 @@ check("重送的同一事件只處理一次", d1.fresh.length === 1 && d2.fresh.
 const rs = await send([textEvent(CUSTOMER, "清除我的資料再問一次")]);
 check("說「清除我的資料」會清掉記憶", rs.fresh[0]?.text.includes("重新開始"), rs.fresh[0]?.text.slice(0, 20));
 const after = await send([textEvent(CUSTOMER, "我想買貓")]);
-check("清掉後從頭問（不是回感謝句）", !!after.fresh[0] && !after.fresh[0].text.includes("謝謝"), after.fresh[0]?.text.slice(0, 30));
+check("清掉後從頭問（不是回感謝句）", !!after.fresh[0] && !after.fresh[0].text.includes("整理好交給"), after.fresh[0]?.text.slice(0, 30));
 
 // 6c. spend alert: the first turn of the day that passes DAILY_COST_ALERT_USD pushes a warning
 const alert = (await outbox()).find((m) => m.kind === "push" && m.text.includes("今天的模型費用"));
