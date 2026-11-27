@@ -283,7 +283,17 @@ async function handleEvent(env: Env, ev: LineEvent) {
     return reply(env, ev.replyToken, userId, INTRO);
   }
   if (ev.type !== "message") return;
-  if (ev.message?.type !== "text") return reply(env, ev.replyToken, userId, NOT_TEXT);
+  if (ev.message?.type !== "text") {
+    // Photos, stickers, voice...: never while the owner has the chat, never for a sticker (it is a
+    // "👍" kind of answer), and the "text only" note at most once, so a customer sending the owner
+    // a row of cat photos is not answered photo by photo
+    if (isOwner) return;
+    const kind = ev.message?.type;
+    await noteCustomer(env, userId, await sessionOf(userId), kind === "image" ? "（傳了圖片）" : kind === "sticker" ? "（傳了貼圖）" : "（傳了非文字訊息）");
+    if (kind === "sticker" || (await quietUntil(env, userId)) !== null || (await env.KV.get(`nt:${userId}`))) return;
+    await env.KV.put(`nt:${userId}`, "1", { expirationTtl: STATE_TTL });
+    return reply(env, ev.replyToken, userId, NOT_TEXT);
+  }
   const text = (ev.message.text ?? "").trim();
   if (!text) return;
 
@@ -308,7 +318,7 @@ async function handleEvent(env: Env, ev: LineEvent) {
   // "start over / forget me": wipe the memory, the LINE name and the recent-list entry. Done even while the
   // owner has the chat (it is a data request), but then without a reply that would talk over the owner.
   if (text.length <= RESET_MAX_CHARS && RESET.test(text)) {
-    await Promise.allSettled([env.KV.delete(key), env.KV.delete(`prof:${userId}`), env.KV.delete(`intro:${userId}`), dropRecent(env, session)]);
+    await Promise.allSettled([env.KV.delete(key), env.KV.delete(`prof:${userId}`), env.KV.delete(`intro:${userId}`), env.KV.delete(`nt:${userId}`), dropRecent(env, session)]);
     if (!quiet) return reply(env, ev.replyToken, userId, RESET_DONE);
     return;
   }
@@ -339,7 +349,7 @@ async function handleEvent(env: Env, ev: LineEvent) {
   let result: Result;
   try {
     const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-    result = await handleMessage(client, env.MODEL, state, merged);
+    result = await handleMessage(client, env.MODEL, state, merged, { quietOk: true });
   } catch (error) {
     console.error("LINE turn failed", error);
     return reply(env, ev.replyToken, userId, BUSY);
@@ -348,12 +358,16 @@ async function handleEvent(env: Env, ev: LineEvent) {
   // The self-introduction is said once. Someone who keeps chatting about other things (often an
   // existing customer talking to the owner) is left to the owner instead of hearing it again.
   const introAgain = result.path === "intro" && !!(await env.KV.get(`intro:${userId}`));
-  if (!introAgain) await reply(env, ev.replyToken, userId, result.reply);
+  if (!introAgain && result.reply) await reply(env, ev.replyToken, userId, result.reply);
   if (result.path === "intro" && !introAgain) await env.KV.put(`intro:${userId}`, "1", { expirationTtl: STATE_TTL });
 
   const after: Promise<unknown>[] = [afterTurn(env, "line", result)];
   // no access token = local test: keep test turns out of the real sheet
-  const logged = introAgain ? { ...result, reply: "（沒有回覆：自我介紹說過了，留給老闆）" } : result;
+  const logged = introAgain
+    ? { ...result, reply: "（沒有回覆：自我介紹說過了，留給老闆）" }
+    : !result.reply
+      ? { ...result, reply: "（沒有回覆：同一個問題問過兩次、或邀請後的閒聊，留給老闆）" }
+      : result;
   if (env.LOG_URL && env.LOG_SECRET && env.LINE_CHANNEL_ACCESS_TOKEN) after.push(logTurn(env.LOG_URL, env.LOG_SECRET, "line", session, merged, logged));
   if (result.path === "lead_saved") {
     // the owner usually answers by hand from here: the advisor steps back for 3 days on its own

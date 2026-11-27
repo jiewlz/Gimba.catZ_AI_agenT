@@ -55,9 +55,9 @@ check("Verify（空事件）回 200", verify.status === 200);
 const f = await send([{ type: "follow", webhookEventId: randomUUID(), replyToken: randomUUID(), source: { type: "user", userId: CUSTOMER } }]);
 check("加好友回自我介紹", f.fresh[0]?.text.includes("AI 選種顧問"), f.fresh[0]?.text.slice(0, 30));
 
-// 4. a sticker is answered with a fixed line
-const st = await send([{ type: "message", webhookEventId: randomUUID(), replyToken: randomUUID(), source: { type: "user", userId: CUSTOMER }, message: { type: "sticker", id: "2" } }]);
-check("貼圖回固定句", st.fresh[0]?.text.includes("文字訊息"));
+// 4. a photo is answered with a fixed line (stickers get no answer, see tests/chatter.mjs)
+const st = await send([{ type: "message", webhookEventId: randomUUID(), replyToken: randomUUID(), source: { type: "user", userId: CUSTOMER }, message: { type: "image", id: "2" } }]);
+check("照片回固定句", st.fresh[0]?.text.includes("文字訊息"));
 
 // 5. a whole conversation: memory must carry over between webhooks (KV)
 const talk = ["想養曼赤肯，喜歡奶油色的", "預算大概六萬", "住公寓，家裡沒有其他寵物", "第一次養貓"];

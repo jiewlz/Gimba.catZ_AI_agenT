@@ -3,7 +3,7 @@
 // - "ok / thanks / 👌" outside an interview gets no answer
 // - several quick messages (separate webhooks, or one webhook) get one answer
 import { readFileSync } from "node:fs";
-import { createHmac, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 
 const BASE = process.argv.includes("--base") ? process.argv[process.argv.indexOf("--base") + 1] : "http://127.0.0.1:8787";
 const vars = Object.fromEntries(
@@ -59,16 +59,51 @@ const BUY = id("burst");
 const b = await replies(BUY, [[textEvent(BUY, "我想養英短")], [textEvent(BUY, "預算大概六萬")]], 20_000);
 check("連發兩句（分開送）→ 只回一則", b.length === 1, `${b.length} 則`);
 console.log(`  顧問：${b[0]?.text ?? "（沒有）"}`);
-check("那一則有接住兩句（不再問品種或預算）", !!b[0] && !/哪一種|哪一類|預算大概|預算範圍|預算是多少|預算多少/.test(b[0].text), b[0]?.text.slice(0, 40));
+check("那一則有接住兩句（不再問品種或預算）", !!b[0] && !/哪一種|哪一類|預算大概(是|落在|多少)|預算範圍|預算是多少|預算多少/.test(b[0].text), b[0]?.text.slice(0, 40));
 
 // 4. in the middle of choosing a cat, "好" is still answered
 const mid = await replies(BUY, [[textEvent(BUY, "好")]]);
-check("選貓訪談中說「好」→ 照常回覆", mid.length === 1, mid[0]?.text.slice(0, 30));
+check("選貓訪談中說「好」→ 照常回覆（不會把自己的想法寫出來）", mid.length === 1 && !/客人(回|說)了/.test(mid[0].text), mid[0]?.text.slice(0, 30));
 
 // 5. LINE puts two quick messages in one webhook
 const ONE = id("batch");
 const one = await replies(ONE, [[textEvent(ONE, "我想養曼赤肯"), textEvent(ONE, "住公寓")]], 20_000);
 check("同一個 webhook 兩句 → 只回一則", one.length === 1, `${one.length} 則`);
+
+// 5b. the same need is asked at most twice in a row; then off-topic chat gets nothing, a question gets only an answer
+const ASK = id("asktwice");
+const a1 = await replies(ASK, [[textEvent(ASK, "想看可預訂的寶寶")]]);
+const a2 = await replies(ASK, [[textEvent(ASK, "我現在在上班")]]);
+check("問需求的回覆夠短（60 字左右）", [...a1, ...a2].every((m) => [...m.text].length <= 80), [...a1, ...a2].map((m) => [...m.text].length).join("、") + " 字");
+console.log(`  顧問：${a1[0]?.text}\n  顧問：${a2[0]?.text}`);
+const a3 = await replies(ASK, [[textEvent(ASK, "晚點再說，先去開會")]]);
+check("同一個問題問過兩次、客人聊別的 → 不回", a3.length === 0, a3[0]?.text.slice(0, 30) ?? "0 則");
+const a4 = await replies(ASK, [[textEvent(ASK, "請問可以分期嗎")]]);
+check("之後問問題 → 只回答、不再追問品種", a4.length === 1 && !/哪一種|哪一類|類型|品種|長腿|短腿|？|\?/.test(a4[0].text), a4[0]?.text);
+
+// 6. photos and stickers: the "text only" note at most once, nothing for stickers, nothing while taken over
+const imageEvent = (userId) => ({ type: "message", ...base(userId), message: { type: "image", id: "2" } });
+const stickerEvent = (userId) => ({ type: "message", ...base(userId), message: { type: "sticker", id: "3" } });
+const PIC = id("photos");
+const p1 = await replies(PIC, [[imageEvent(PIC), imageEvent(PIC), imageEvent(PIC)]], 3000);
+check("一次傳三張照片 → 只說一次「只看得懂文字」", p1.length === 1 && p1[0].text.includes("文字"), `${p1.length} 則`);
+const p2 = await replies(PIC, [[imageEvent(PIC)]], 3000);
+check("之後再傳照片 → 不回", p2.length === 0, `${p2.length} 則`);
+const STK = id("sticker");
+const s1 = await replies(STK, [[stickerEvent(STK)]], 3000);
+check("傳貼圖 → 不回", s1.length === 0, `${s1.length} 則`);
+const OWNER = vars.LINE_OWNER_ID;
+if (OWNER) {
+  const TAKEN = id("taken");
+  await replies(TAKEN, [[textEvent(TAKEN, "我想養英短")]], 12_000);
+  const code = "line-" + createHash("sha256").update(TAKEN).digest("hex").slice(0, 10);
+  const taken = await replies(OWNER, [[textEvent(OWNER, `接手 ${code}`)]], 3000);
+  check("老闆接手", taken.length === 1 && taken[0].text.startsWith("已接手"), taken[0]?.text.slice(0, 20));
+  const quietPic = await replies(TAKEN, [[imageEvent(TAKEN)], [stickerEvent(TAKEN)]], 3000);
+  check("接手中客人只傳照片／貼圖 → 不回", quietPic.length === 0, `${quietPic.length} 則`);
+  await replies(OWNER, [[textEvent(OWNER, `交回 ${code}`)]], 3000);
+} else console.log("（.dev.vars 沒有 LINE_OWNER_ID，略過接手中傳照片的測試）");
+
 
 console.log(`\n${ok} 通過、${fail} 沒過`);
 process.exit(fail ? 1 : 0);

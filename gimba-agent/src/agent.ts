@@ -8,6 +8,7 @@ import VISIT from "../prompts/visit.md";
 import EXISTING from "../prompts/existing.md";
 import FOLLOWUP from "../prompts/followup.md";
 import MEMBER from "../prompts/member.md";
+import ANSWER from "../prompts/answer.md";
 import { byTitle, render, sectionsForNeeds, sectionsForQuestion } from "./knowledge";
 import { detect, guardReply, type GuardReport } from "./guard";
 
@@ -28,7 +29,7 @@ const SAFE_MEMBER = "收到，這部分我請老闆直接跟您聯繫。";
 
 // Fixed lines: the flow decides when they appear, never the model.
 export const INTRO =
-  "您好！我是金霸貓舍的 AI 選種顧問，可以幫您了解英短血系五個品種（英短、英長、曼赤肯、長毛曼赤肯、小步舞曲）的個性、價格區間和看貓流程。想養貓的話，跟我說說您的狀況吧！";
+  "您好！我是金霸貓舍的 AI 選種顧問，可以介紹英短、英長、曼赤肯、長毛曼赤肯、小步舞曲的個性、價格區間和看貓流程。想養貓的話跟我說說吧！";
 export const LEAD_INVITE =
   "如果想看看目前有哪些寶寶，方便留個稱呼跟聯絡方式嗎？貓舍老闆會直接跟您聯繫。";
 export const EXISTING_NOTE = "接貓的實際日期和安排，貓舍老闆會直接跟您聯繫確認。";
@@ -40,7 +41,7 @@ export const THANKS =
 const SLOT_KEYS = ["breed", "budget", "home", "experience"] as const;
 type SlotKey = (typeof SLOT_KEYS)[number];
 const SLOT_LABEL: Record<SlotKey, string> = {
-  breed: "想要的品種或類型（長腿、短腿、長毛、短毛都可以，喜歡的毛色也可以一起說）",
+  breed: "想要的品種或類型",
   budget: "預算",
   home: "居住環境（房型、空間、家裡有沒有小孩或其他寵物）",
   experience: "養貓經驗",
@@ -74,6 +75,8 @@ export interface State {
   history: Turn[];
   turn: number;
   member?: boolean; // bought a cat from us: after-sales tone, never sell again (owner's 成交 command or the customer saying so)
+  asked?: { slot: string; n: number }; // the need asked last turn and how many turns in a row
+  invitedAt?: number; // the turn the lead invite was last added
 }
 export function newState(): State {
   return { stage: "idle", slots: { breed: "", budget: "", home: "", experience: "", name: "", contact: "", color: "" }, history: [], turn: 0 };
@@ -96,7 +99,12 @@ export interface Result {
 export interface Options {
   guard?: boolean; // default on; the eval script turns it off to measure the raw replies
   audit?: boolean; // eval only
+  quietOk?: boolean; // LINE: the turn may end with no reply (the chat is probably with the owner)
 }
+// The same need is asked at most twice in a row; then only questions are answered
+const ASK_MAX = 2;
+// The fixed lead invite comes back at most every few turns, not under every answer
+const INVITE_GAP = 3;
 
 const HISTORY_TURNS = 6;
 // "bought here" needs words pointing at the cattery, not just "my cat"
@@ -250,6 +258,7 @@ ${EXISTING_NOTE}`;
     reply = `${await checked(textOf(visitRes), visitKb, true, SAFE_VISIT)}\n\n${LEAD_INVITE}`;
     path = "visit";
     state.stage = "invited";
+    state.invitedAt = state.turn;
   } else if (state.stage === "done") {
     // Contact already left: answer the question, never interview or invite again
     reply = await answerOnly(FOLLOWUP, SAFE_FOLLOWUP);
@@ -257,11 +266,25 @@ ${EXISTING_NOTE}`;
   } else if (a.intent === "other" && state.stage === "idle") {
     reply = INTRO;
     path = "intro";
+  } else if (opts.quietOk && a.intent === "other" && !a.side_question && state.stage === "invited") {
+    // Small talk after the invite: on LINE that is usually a chat with the owner
+    reply = "";
+    path = "quiet_chat";
   } else {
     if (state.stage === "idle") state.stage = "interview";
     const missing = SLOT_KEYS.filter((k) => !state.slots[k]);
+    const next = missing[0];
+    const askedEnough = state.stage === "interview" && !!next && state.asked?.slot === next && state.asked.n >= ASK_MAX;
 
-    if (missing.length > 0 && state.stage === "interview") {
+    if (askedEnough && !a.side_question && opts.quietOk) {
+      // Asked twice already and the customer is talking about something else: stop asking, leave it to the owner
+      reply = "";
+      path = "quiet_chat";
+    } else if (askedEnough && a.side_question) {
+      // Asked twice already: answer the question and ask nothing
+      reply = await answerOnly(ANSWER, SAFE_SIDE);
+      path = "answer_only";
+    } else if (missing.length > 0 && state.stage === "interview") {
       // 2. Ask for the first missing need
       const kb = render(sectionsForQuestion(a.side_question));
       const askRes = await client.messages.create({
@@ -272,13 +295,14 @@ ${EXISTING_NOTE}`;
         messages: [
           {
             role: "user",
-            content: `<recent_conversation>\n${transcript(state.history)}\n客人：${message}\n</recent_conversation>\n<ask_about>${SLOT_LABEL[missing[0]]}</ask_about>\n<side_question>${a.side_question}</side_question>\n<knowledge>\n${kb}\n</knowledge>`,
+            content: `<recent_conversation>\n${transcript(state.history)}\n客人：${message}\n</recent_conversation>\n<ask_about>${SLOT_LABEL[next]}</ask_about>\n<side_question>${a.side_question}</side_question>\n<knowledge>\n${kb}\n</knowledge>`,
           },
         ],
       });
       addUsage(usage, askRes);
-      reply = await checked(textOf(askRes), kb, false, (a.side_question ? SAFE_SIDE : "") + SAFE_ASK[missing[0]]);
-      path = `ask_${missing[0]}`;
+      reply = await checked(textOf(askRes), kb, false, (a.side_question ? SAFE_SIDE : "") + SAFE_ASK[next]);
+      path = `ask_${next}`;
+      state.asked = { slot: next, n: state.asked?.slot === next ? state.asked.n + 1 : 1 };
     } else {
       // 3. All needs known: recommend from the knowledge base, then the fixed invite
       const kb = render([...new Set([...sectionsForNeeds(state.slots.breed), ...sectionsForQuestion(a.side_question)])]);
@@ -296,7 +320,13 @@ ${EXISTING_NOTE}`;
         ],
       });
       addUsage(usage, recRes);
-      reply = `${await checked(textOf(recRes), kb, true, SAFE_RECOMMEND)}\n\n${LEAD_INVITE}`;
+      // the invite follows the first recommendation; after that it comes back only every few turns
+      const invite = state.stage === "interview" || state.invitedAt === undefined || state.turn - state.invitedAt >= INVITE_GAP;
+      reply = await checked(textOf(recRes), kb, invite, SAFE_RECOMMEND);
+      if (invite) {
+        reply += `\n\n${LEAD_INVITE}`;
+        state.invitedAt = state.turn;
+      }
       path = state.stage === "interview" ? "recommend" : "recommend_again";
       if (state.stage === "interview") state.stage = "invited";
     }
